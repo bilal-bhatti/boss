@@ -1,0 +1,53 @@
+[package]
+name = "boss"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+description = "A Matter bridge for Home Assistant MQTT-discovery devices (ESPHome switches, etc.)"
+license = "MIT OR Apache-2.0"
+
+[features]
+# mDNS backend. Pick exactly one for your deployment; the default built-in
+# raw-socket responder is cross-platform but conflicts with a system mDNS
+# responder already bound to UDP 5353 (e.g. macOS `mDNSResponder`).
+default = []
+astro-dnssd = ["rs-matter/astro-dnssd"] # macOS (Bonjour / dns_sd)
+avahi = ["rs-matter/zbus"]              # Linux (avahi over D-Bus) — deploy target
+
+[dependencies]
+# MQTT (blocking client; driven on a dedicated thread, bridged to async via channels).
+# default-features disabled: we use plain TCP, so we drop rumqttc's rustls/ring
+# stack — keeps the dep graph pure-Rust for static musl cross-compilation.
+rumqttc = { version = "0.24", default-features = false }
+async-channel = "2"
+
+# Discovery payload parsing
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Errors + logging
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+
+# Matter. Pinned to a specific upstream revision (no published crate at time of
+# writing). For local rs-matter development, swap this for a path dependency:
+#   rs-matter = { path = "../rs-matter/rs-matter", features = [...] }
+rs-matter = { git = "https://github.com/project-chip/rs-matter", rev = "2af8e7bc2722aaf3cca9750b8713e3d00604d6ea", features = [
+    "async-io",
+    "max-groups-per-fabric-12",
+    "max-group-keys-per-fabric-2",
+    "max-group-endpoints-per-fabric-3",
+    "max-sessions-32",
+] }
+embassy-futures = "0.1"
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+embassy-time = { version = "0.5", features = ["std"] }
+embassy-time-queue-utils = { version = "0.3", features = ["generic-queue-64"] }
+async-io = "2"
+futures-lite = "2"
+rand = { version = "0.8", features = ["std", "std_rng"] }
+async-signal = "0.2"
+socket2 = "0.5"
+if-addrs = "0.15"
+static_cell = "1"

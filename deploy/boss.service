@@ -1,0 +1,31 @@
+[Unit]
+Description=boss — Home Assistant MQTT to Matter bridge
+After=network-online.target avahi-daemon.service
+Wants=network-online.target avahi-daemon.service
+# Built with the `avahi` feature: boss publishes its Matter mDNS records via
+# avahi over D-Bus instead of binding UDP 5353 itself. avahi is a hard
+# functional dependency (without mDNS the Matter node is unreachable), so we
+# `Wants` it (pull it in + start it) and order `After` it.
+# mDNS failure is fatal in boss; disable the start rate-limiter so it keeps
+# retrying (e.g. if avahi is briefly unavailable) instead of giving up.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Replace 192.0.2.10 with your MQTT broker's address. Use an IP if the container
+# has no mDNS resolver (nss-mdns) and the broker is only known as `*.local`.
+ExecStart=/usr/local/bin/boss --mqtt-host 192.0.2.10 --state-dir /var/lib/boss
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+
+# Runs as root. The avahi mDNS backend authenticates to the system D-Bus, which
+# a transient `DynamicUser` id cannot do; root can. boss binds no privileged
+# port directly (avahi owns 5353; boss uses Matter UDP 5540), so this is purely
+# about D-Bus access. Acceptable in a dedicated single-purpose container.
+# Persisted Matter commissioning state (survives restarts/reboots). systemd
+# migrates the previous DynamicUser state from /var/lib/private/boss on switch.
+StateDirectory=boss
+
+[Install]
+WantedBy=multi-user.target

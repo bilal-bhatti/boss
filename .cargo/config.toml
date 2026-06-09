@@ -1,0 +1,6 @@
+# Cross-compile to static Linux musl without a system C toolchain by using the
+# rust-bundled LLD linker instead of the host `cc` (which on macOS is clang
+# targeting darwin and cannot emit a Linux ELF).
+[target.x86_64-unknown-linux-musl]
+linker = "rust-lld"
+rustflags = ["-C", "linker-flavor=ld.lld"]
