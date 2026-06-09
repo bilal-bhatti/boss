@@ -153,6 +153,7 @@ Build + push:
 cargo build --release --target x86_64-unknown-linux-musl
 incus exec boss -- systemctl stop boss            # avoid "text file busy"
 incus file push target/x86_64-unknown-linux-musl/release/boss boss/usr/local/bin/boss --mode 0755
+incus file push deploy/boss.env boss/etc/default/boss   # config (EnvironmentFile)
 incus file push deploy/boss.service boss/etc/systemd/system/boss.service
 incus exec boss -- systemctl daemon-reload
 incus exec boss -- systemctl enable --now boss
@@ -168,6 +169,9 @@ incus exec boss -- journalctl -u boss -f
   no capabilities are needed — root is only about D-Bus access.
 - `StateDirectory=boss` → `/var/lib/boss` (survives reboots). Switching off
   `DynamicUser` made systemd migrate state out of `/var/lib/private/boss`.
+- Runtime config lives in `/etc/default/boss` (from `deploy/boss.env`), loaded by
+  the unit's `EnvironmentFile=`; systemd expands the `BOSS_*` vars into boss's
+  CLI flags in `ExecStart`, so the binary stays plain flags-only (no env-parsing).
 - Broker addressed by **IP** (a `.local` broker name may not resolve without nss-mdns).
 - The IPv4-only concern of the built-in backend does not apply here — avahi
   handles advertising. (Built-in backend stays available via default features

@@ -68,6 +68,9 @@ incus exec boss -- apt-get install -y avahi-daemon dbus
 incus file push target/x86_64-unknown-linux-musl/release/boss \
     boss/usr/local/bin/boss --mode 0755 --create-dirs
 
+# config (edit deploy/boss.env first — broker IP, etc.)
+incus file push deploy/boss.env boss/etc/default/boss
+
 # systemd unit
 incus file push deploy/boss.service boss/etc/systemd/system/boss.service
 
@@ -104,25 +107,35 @@ paired across binary upgrades.
 
 ## 6. Configuration
 
-Flags are set in `deploy/boss.service` (`ExecStart`). Run `boss --help` for the
-full list. Defaults aside, the deployed unit sets:
+Runtime config lives in an environment file, `/etc/default/boss` (deployed from
+`deploy/boss.env`), which the unit loads via `EnvironmentFile=`. The unit then
+expands those vars into boss's flags in `ExecStart`, so the binary stays plain
+flags-only — edit the env file, not the unit. Run `boss --help` for every flag.
+The deployed env file sets:
 
-| Flag | Value | Why |
-|------|-------|-----|
-| `--mqtt-host` | `192.0.2.10` | Broker IP — `nss-mdns` isn't set up for resolution, so a `.local` broker name may not resolve. |
-| `--state-dir` | `/var/lib/boss` | Persisted Matter state (provided by systemd `StateDirectory=boss`). |
+| Variable | Flag | Value | Why |
+|----------|------|-------|-----|
+| `BOSS_MQTT_HOST` | `--mqtt-host` | `192.0.2.10` | Broker IP — `nss-mdns` isn't set up for resolution, so a `.local` broker name may not resolve. |
+| `BOSS_MQTT_PORT` | `--mqtt-port` | `1883` | Broker port. |
+| `BOSS_STATE_DIR` | `--state-dir` | `/var/lib/boss` | Persisted Matter state (provided by systemd `StateDirectory=boss`). |
+| `RUST_LOG` | — | `info` | Log level (passed as process env, not a flag). |
+
+Every var referenced in `ExecStart` must be present in the env file: an unset
+`${VAR}` expands to an empty argument. `EnvironmentFile=` has no leading `-`, so
+a missing `/etc/default/boss` fails the unit loudly rather than silently using
+defaults (e.g. `localhost`).
 
 The unit runs as **root** and `Wants`/`After` `avahi-daemon.service`. Root is
 required because the avahi mDNS backend authenticates to the system D-Bus, which
 a transient `DynamicUser` id cannot do (see Troubleshooting). boss binds no
 privileged port directly — avahi owns 5353; boss uses Matter UDP 5540.
 
-After editing the unit:
+After editing the config (or unit):
 ```
-incus file push deploy/boss.service boss/etc/systemd/system/boss.service
-incus exec boss -- systemctl daemon-reload
+incus file push deploy/boss.env boss/etc/default/boss
 incus exec boss -- systemctl restart boss
 ```
+Editing the unit itself also needs `systemctl daemon-reload` before `restart`.
 
 ---
 
@@ -165,7 +178,7 @@ incus exec boss -- systemctl start boss
   running (`systemctl is-active avahi-daemon dbus`), or the service runs as a
   `DynamicUser` (a transient uid cannot authenticate to the system bus — run as
   root, as the unit does). Verify by running the binary manually as root:
-  `incus exec boss -- /usr/local/bin/boss --mqtt-host 192.0.2.10 --state-dir /var/lib/boss`
+  `incus exec boss -- bash -c 'set -a; . /etc/default/boss; exec /usr/local/bin/boss --mqtt-host $BOSS_MQTT_HOST --state-dir $BOSS_STATE_DIR'`
   — a healthy run logs `Avahi API version` + `Registering mDNS service`.
 - **Apple Home spins on "connecting"** — the controller can't reach the Matter
   node. With the built-in mDNS backend on an IPv4-only host it can be an IPv6

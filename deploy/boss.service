@@ -12,12 +12,15 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-# Replace 192.0.2.10 with your MQTT broker's address. Use an IP if the container
-# has no mDNS resolver (nss-mdns) and the broker is only known as `*.local`.
-ExecStart=/usr/local/bin/boss --mqtt-host 192.0.2.10 --state-dir /var/lib/boss
+# Runtime config lives in this env file (broker, state dir, RUST_LOG) as
+# BOSS_*/RUST_LOG=value pairs; edit it, not this unit. No leading `-`, so a
+# missing config file fails the unit loudly instead of silently using defaults.
+# systemd expands the BOSS_* vars into boss's normal flags below (`${VAR}` is a
+# single argument), so the binary stays plain flags-only — no env-parsing in it.
+EnvironmentFile=/etc/default/boss
+ExecStart=/usr/local/bin/boss --mqtt-host ${BOSS_MQTT_HOST} --mqtt-port ${BOSS_MQTT_PORT} --state-dir ${BOSS_STATE_DIR}
 Restart=on-failure
 RestartSec=5
-Environment=RUST_LOG=info
 
 # Runs as root. The avahi mDNS backend authenticates to the system D-Bus, which
 # a transient `DynamicUser` id cannot do; root can. boss binds no privileged
