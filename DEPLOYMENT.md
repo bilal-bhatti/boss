@@ -68,11 +68,15 @@ incus exec boss -- apt-get install -y avahi-daemon dbus
 incus file push target/x86_64-unknown-linux-musl/release/boss \
     boss/usr/local/bin/boss --mode 0755 --create-dirs
 
-# config (edit deploy/boss.env first — broker IP, etc.)
-incus file push deploy/boss.env boss/etc/default/boss
-
 # systemd unit
 incus file push deploy/boss.service boss/etc/systemd/system/boss.service
+
+# config — ONE-TIME ONLY. deploy/boss.env is a template with a placeholder
+# broker IP; the real IP is environment-specific and lives only on the
+# container. Push it once, then set the real values in place (below). Do NOT
+# re-push it on updates or you'll clobber the real config.
+incus file push deploy/boss.env boss/etc/default/boss
+incus exec boss -- sed -i 's/192\.0\.2\.10/<real-broker-ip>/' /etc/default/boss
 
 # enable + start (also starts on container boot)
 incus exec boss -- systemctl daemon-reload
@@ -101,41 +105,46 @@ incus exec boss -- systemctl start boss
 ```
 
 Commissioning state in `/var/lib/boss` survives updates, so the device stays
-paired across binary upgrades.
+paired across binary upgrades. The config at `/etc/default/boss` is **not**
+re-pushed (it holds the real, environment-specific broker IP) — leave it alone.
+Push the unit too only if `deploy/boss.service` changed (then `daemon-reload`).
 
 ---
 
 ## 6. Configuration
 
-Runtime config lives in an environment file, `/etc/default/boss` (deployed from
-`deploy/boss.env`), which the unit loads via `EnvironmentFile=`. The unit then
-expands those vars into boss's flags in `ExecStart`, so the binary stays plain
-flags-only — edit the env file, not the unit. Run `boss --help` for every flag.
-The deployed env file sets:
+Runtime config lives in an environment file, `/etc/default/boss`, which the unit
+loads via `EnvironmentFile=`. The unit expands those vars into boss's flags in
+`ExecStart`, so the binary stays plain flags-only — edit the env file, not the
+unit. Run `boss --help` for every flag. The vars:
 
 | Variable | Flag | Value | Why |
 |----------|------|-------|-----|
-| `BOSS_MQTT_HOST` | `--mqtt-host` | `192.0.2.10` | Broker IP — `nss-mdns` isn't set up for resolution, so a `.local` broker name may not resolve. |
+| `BOSS_MQTT_HOST` | `--mqtt-host` | _(your broker IP)_ | `nss-mdns` isn't set up for resolution, so a `.local` broker name may not resolve — use an IP. |
 | `BOSS_MQTT_PORT` | `--mqtt-port` | `1883` | Broker port. |
 | `BOSS_STATE_DIR` | `--state-dir` | `/var/lib/boss` | Persisted Matter state (provided by systemd `StateDirectory=boss`). |
 | `RUST_LOG` | — | `info` | Log level (passed as process env, not a flag). |
 
-Every var referenced in `ExecStart` must be present in the env file: an unset
-`${VAR}` expands to an empty argument. `EnvironmentFile=` has no leading `-`, so
-a missing `/etc/default/boss` fails the unit loudly rather than silently using
-defaults (e.g. `localhost`).
+`deploy/boss.env` in the repo is a **template** with a placeholder broker IP
+(`192.0.2.10`, RFC5737 — deliberately non-routable so a forgotten edit fails
+loudly rather than hitting a real host). The real IP is environment-specific and
+lives only on the container; **edit `/etc/default/boss` in place there** — never
+commit it or re-push the template over it. Every var referenced in `ExecStart`
+must be present: an unset `${VAR}` expands to an empty argument. `EnvironmentFile=`
+has no leading `-`, so a missing file fails the unit loudly.
 
 The unit runs as **root** and `Wants`/`After` `avahi-daemon.service`. Root is
 required because the avahi mDNS backend authenticates to the system D-Bus, which
 a transient `DynamicUser` id cannot do (see Troubleshooting). boss binds no
 privileged port directly — avahi owns 5353; boss uses Matter UDP 5540.
 
-After editing the config (or unit):
+To change the config, edit the live file in place on the container, then restart:
 ```
-incus file push deploy/boss.env boss/etc/default/boss
+incus exec boss -- vi /etc/default/boss      # or: sed -i 's/old/new/' ...
 incus exec boss -- systemctl restart boss
 ```
-Editing the unit itself also needs `systemctl daemon-reload` before `restart`.
+Editing the unit (`deploy/boss.service`) instead is a normal push and needs
+`systemctl daemon-reload` before `restart`.
 
 ---
 
