@@ -49,6 +49,15 @@ const ONOFF_ID: ClusterId = <MqttOnOff as OnOffHooks>::CLUSTER.id;
 // without waiting for their own re-read.
 const PARTS_LIST_ATTR: AttrId = descriptor::AttributeId::PartsList as AttrId;
 
+/// A read-only snapshot of one bridged device, rendered by the status page.
+pub struct DeviceView {
+    pub endpoint: EndptId,
+    pub name: String,
+    pub unique_id: String,
+    pub reachable: bool,
+    pub on: bool,
+}
+
 /// One device slot. The struct shape is fixed for the bridge's lifetime; every
 /// runtime change goes through interior mutability (the handlers' own cells,
 /// the shared [`Activation`], and `active`).
@@ -178,6 +187,25 @@ impl Bridge {
             device_endpoint(index)
         );
         Ok(())
+    }
+
+    /// A read-only view of every currently bridged device, for the status page.
+    pub fn device_views(&self) -> Vec<DeviceView> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.is_active())
+            .map(|(i, s)| {
+                let (unique_id, name, reachable) = s.bridged.snapshot();
+                DeviceView {
+                    endpoint: device_endpoint(i),
+                    name,
+                    unique_id,
+                    reachable,
+                    on: s.on_off.on_off(),
+                }
+            })
+            .collect()
     }
 
     /// Route a non-discovery MQTT message to the right slot: a state update or

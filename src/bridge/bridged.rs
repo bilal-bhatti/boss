@@ -52,6 +52,16 @@ impl BridgedHandler {
         self.dataver.changed();
     }
 
+    /// A read-only copy of the device identity/reachability, for the status page.
+    pub fn snapshot(&self) -> (String, String, bool) {
+        let info = self.lock();
+        (
+            info.unique_id.clone(),
+            info.node_label.clone(),
+            info.reachable,
+        )
+    }
+
     pub fn adapt(self) -> HandlerAdaptor<Self> {
         HandlerAdaptor(self)
     }

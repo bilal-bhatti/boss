@@ -6,7 +6,7 @@ use std::net::UdpSocket;
 use std::process::id;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use embassy_futures::select::{select, select4};
+use embassy_futures::select::{select, select3, select4};
 use futures_lite::StreamExt;
 
 use rs_matter::crypto::{default_crypto, Crypto};
@@ -119,6 +119,9 @@ fn run() -> Result<(), Error> {
         matter.open_basic_comm_window(MAX_COMM_WINDOW_TIMEOUT_SECS, &crypto, &())?;
     }
 
+    // Commissioning QR + manual code for the status page (constant; computed once).
+    let comm_info = build_commissioning()?;
+
     // --- Run everything ---
     let mut transport = pin!(matter.run(&crypto, &socket, &socket, &socket));
     // mDNS is a hard requirement: without it the Matter node is undiscoverable
@@ -134,11 +137,44 @@ fn run() -> Result<(), Error> {
     let mut dm_job = pin!(dm.run());
     let mut router = pin!(run_router(&bridge, &cfg, incoming));
     let mut sigint = pin!(wait_for_sigint());
+    let mut web = pin!(boss::web::run(&bridge, cfg.http_port, &comm_info));
 
     let core = select4(&mut transport, &mut mdns, &mut respond, &mut dm_job).coalesce();
-    let aux = select(&mut router, &mut sigint).coalesce();
+    let aux = select3(&mut router, &mut sigint, &mut web).coalesce();
 
     futures_lite::future::block_on(select(core, aux).coalesce())
+}
+
+/// Compute the Matter onboarding QR (as SVG) + manual pairing code shown on the
+/// status page. These derive only from the fixed device commissioning data, so
+/// they're constant for the life of the process.
+fn build_commissioning() -> Result<boss::web::Commissioning, Error> {
+    use rs_matter::pairing::qr::{no_optional_data, CommFlowType, Qr, QrPayload};
+
+    let payload = QrPayload::new_from_basic_info(
+        DiscoveryCapabilities::IP,
+        CommFlowType::Standard,
+        TEST_DEV_COMM.clone(),
+        &TEST_DEV_DET,
+        no_optional_data,
+    );
+
+    let mut text_buf = [0u8; 256];
+    let (text, _) = payload.as_str(&mut text_buf)?;
+    let qr_text = text.to_string();
+
+    let mut tmp_buf = [0u8; 1024];
+    let mut out_buf = [0u8; 1024];
+    let qr = Qr::compute(text, &mut tmp_buf, &mut out_buf)?;
+    let qr_svg = boss::web::qr_svg(&qr);
+
+    let manual_code = TEST_DEV_COMM.compute_pretty_pairing_code().to_string();
+
+    Ok(boss::web::Commissioning {
+        qr_svg,
+        manual_code,
+        qr_text,
+    })
 }
 
 /// Consume incoming MQTT messages: discovery → bridge a device; everything else

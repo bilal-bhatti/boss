@@ -123,6 +123,7 @@ unit. Run `boss --help` for every flag. The vars:
 | `BOSS_MQTT_HOST` | `--mqtt-host` | _(your broker IP)_ | `nss-mdns` isn't set up for resolution, so a `.local` broker name may not resolve — use an IP. |
 | `BOSS_MQTT_PORT` | `--mqtt-port` | `1883` | Broker port. |
 | `BOSS_STATE_DIR` | `--state-dir` | `/var/lib/boss` | Persisted Matter state (provided by systemd `StateDirectory=boss`). |
+| `BOSS_HTTP_PORT` | `--http-port` | `80` | Embedded status page (all interfaces). Port 80 needs root, which the unit already is. |
 | `RUST_LOG` | — | `info` | Log level (passed as process env, not a flag). |
 
 `deploy/boss.env` in the repo is a **template** with a placeholder broker IP

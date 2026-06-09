@@ -18,7 +18,7 @@ Type=simple
 # systemd expands the BOSS_* vars into boss's normal flags below (`${VAR}` is a
 # single argument), so the binary stays plain flags-only — no env-parsing in it.
 EnvironmentFile=/etc/default/boss
-ExecStart=/usr/local/bin/boss --mqtt-host ${BOSS_MQTT_HOST} --mqtt-port ${BOSS_MQTT_PORT} --state-dir ${BOSS_STATE_DIR}
+ExecStart=/usr/local/bin/boss --mqtt-host ${BOSS_MQTT_HOST} --mqtt-port ${BOSS_MQTT_PORT} --state-dir ${BOSS_STATE_DIR} --http-port ${BOSS_HTTP_PORT}
 Restart=on-failure
 RestartSec=5
 

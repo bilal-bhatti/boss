@@ -8,3 +8,4 @@ pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod mqtt;
+pub mod web;

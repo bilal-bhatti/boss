@@ -114,6 +114,13 @@ handler for the lifetime of its run loop; structurally mutating a `Vec`
 On start it prints a Matter QR + pairing code and opens a commissioning window.
 See `--help` for flags.
 
+It also serves a small **read-only status page** (`src/web.rs`, `--http-port`,
+default 8080) listing the bridged devices + the commissioning QR. It's just
+another task in the main `select` borrowing `&Bridge` (no threads/extra runtime);
+the page is an `askama` template (`templates/index.html`, compile-time checked,
+auto-escaping) and the QR is inline SVG from rs-matter's encoder. Auxiliary, not
+load-bearing: a bind failure is logged and parked, never fatal (unlike mDNS).
+
 The mDNS backend is a **Cargo feature** (`src/mdns.rs`), so the same source runs
 on both macOS (dev) and the Linux deploy target — pick one:
 

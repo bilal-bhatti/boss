@@ -19,6 +19,9 @@ pub struct Config {
     /// Directory for persisted Matter state (commissioning, fabrics). Must
     /// survive reboots for the device to stay paired.
     pub state_dir: PathBuf,
+    /// TCP port for the embedded read-only status page (bound on all
+    /// interfaces).
+    pub http_port: u16,
 }
 
 impl Default for Config {
@@ -30,6 +33,7 @@ impl Default for Config {
             mqtt_password: None,
             discovery_prefix: DEFAULT_PREFIX.to_owned(),
             state_dir: std::env::temp_dir().join("rs-matter"),
+            http_port: 8080,
         }
     }
 }
@@ -63,6 +67,12 @@ impl Config {
                 "--mqtt-pass" => cfg.mqtt_password = Some(value()?),
                 "--discovery-prefix" => cfg.discovery_prefix = value()?,
                 "--state-dir" => cfg.state_dir = PathBuf::from(value()?),
+                "--http-port" => {
+                    let v = value()?;
+                    cfg.http_port = v
+                        .parse()
+                        .map_err(|_| Error::config(format!("invalid --http-port `{v}`")))?;
+                }
                 "-h" | "--help" => return Err(Error::config(USAGE)),
                 other => return Err(Error::config(format!("unknown flag `{other}`\n{USAGE}"))),
             }
@@ -88,6 +98,7 @@ Usage: boss [options]
   --mqtt-pass <pass>        MQTT password (optional)
   --discovery-prefix <p>    HA discovery prefix (default: homeassistant)
   --state-dir <dir>         Matter state dir (default: <tmp>/rs-matter)
+  --http-port <port>        Status page port (default: 8080)
   -h, --help                Show this help";
 
 #[cfg(test)]

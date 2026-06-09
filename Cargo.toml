@@ -30,6 +30,10 @@ thiserror = "2"
 log = "0.4"
 env_logger = "0.11"
 
+# Status page HTML templating (compile-time, type-checked, auto-escaping).
+# Pure-Rust, so it stays compatible with the static musl cross-build.
+askama = "0.13"
+
 # Matter. Pinned to a specific upstream revision (no published crate at time of
 # writing). For local rs-matter development, swap this for a path dependency:
 #   rs-matter = { path = "../rs-matter/rs-matter", features = [...] }

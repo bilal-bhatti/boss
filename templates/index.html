@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="5">
+<title>boss</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f9;color:#0b1220}
+.wrap{max-width:920px;margin:0 auto;padding:2rem 1.25rem}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;margin-bottom:1.5rem}
+h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+.sub{margin:.15rem 0 0;color:#67748b;font-size:.9rem}
+.stat{text-align:right;color:#67748b;font-size:.85rem;white-space:nowrap}
+.stat .big{font-size:1.7rem;font-weight:700;color:#0b1220;margin-right:.25rem}
+main{display:grid;grid-template-columns:1fr 280px;gap:1.25rem;align-items:start}
+@media(max-width:680px){main{grid-template-columns:1fr}}
+.devices{display:grid;gap:.75rem}
+.card{background:#fff;border:1px solid #e6eaf0;border-radius:12px;padding:1rem 1.1rem;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.card-h{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
+.name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dot.ok{background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)}
+.dot.down{background:#cf222e;box-shadow:0 0 0 3px rgba(207,34,46,.15)}
+.badge{font-size:.72rem;font-weight:700;padding:.18rem .5rem;border-radius:999px;letter-spacing:.03em}
+.b-on{background:#dcfce7;color:#15803d}.b-off{background:#eef1f5;color:#67748b}.b-down{background:#fde8e8;color:#cf222e}
+dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.3rem 1rem;font-size:.85rem}
+dl>div{display:contents}
+dt{color:#90a0b7}dd{margin:0;text-align:right}
+code{font:12px ui-monospace,SFMono-Regular,monospace;color:#475569;word-break:break-all}
+.empty{background:#fff;border:1px dashed #d4dbe6;border-radius:12px;padding:2rem 1.25rem;color:#90a0b7;text-align:center}
+.pair{background:#fff;border:1px solid #e6eaf0;border-radius:12px;padding:1.1rem;text-align:center;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.pair h2{margin:0 0 .8rem;font-size:.95rem;color:#0b1220}
+.qr{width:200px;height:200px;border-radius:8px}
+.code{margin:.9rem 0 .4rem}
+.code .lbl{display:block;font-size:.72rem;color:#90a0b7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.15rem}
+.code strong{font:600 1.15rem ui-monospace,monospace;letter-spacing:.04em}
+.hint{font:11px ui-monospace,monospace;color:#90a0b7;word-break:break-all;margin:.4rem 0 0}
+.note{font-size:.78rem;color:#90a0b7;margin:.8rem 0 0;line-height:1.45}
+footer{margin-top:1.75rem;text-align:center;color:#aab4c4;font-size:.78rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>boss</h1><p class="sub">Home Assistant MQTT &#8594; Matter bridge</p></div>
+    <div class="stat"><span class="big">{{ online }}</span><span>/ {{ devices.len() }} online</span></div>
+  </header>
+  <main>
+    <section class="devices">
+      {% if devices.is_empty() %}
+        <div class="empty">No devices bridged yet &#8212; they appear here as Home Assistant discovery messages arrive.</div>
+      {% else %}
+        {% for d in devices %}
+        <div class="card">
+          <div class="card-h">
+            <span class="dot {% if d.reachable %}ok{% else %}down{% endif %}"></span>
+            <span class="name">{{ d.name }}</span>
+            {% if !d.reachable %}<span class="badge b-down">offline</span>
+            {% else if d.on %}<span class="badge b-on">ON</span>
+            {% else %}<span class="badge b-off">OFF</span>{% endif %}
+          </div>
+          <dl>
+            <div><dt>Endpoint</dt><dd>{{ d.endpoint }}</dd></div>
+            <div><dt>Reachable</dt><dd>{% if d.reachable %}yes{% else %}no{% endif %}</dd></div>
+            <div><dt>Unique ID</dt><dd><code>{{ d.unique_id }}</code></dd></div>
+          </dl>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </section>
+    <aside class="pair">
+      <h2>Pair with Matter</h2>
+      {{ qr_svg|safe }}
+      <div class="code"><span class="lbl">Manual code</span><strong>{{ manual_code }}</strong></div>
+      <p class="hint">{{ qr_text }}</p>
+      <p class="note">Scan from Apple Home / Google Home / Alexa. Pairing only succeeds while a commissioning window is open.</p>
+    </aside>
+  </main>
+  <footer>auto-refreshes every 5s</footer>
+</div>
+</body>
+</html>
