@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="5">
 <title>boss</title>
 <style>
 *{box-sizing:border-box}
@@ -78,7 +77,27 @@ footer{margin-top:1.75rem;text-align:center;color:#aab4c4;font-size:.78rem}
       <p class="note">Scan from Apple Home / Google Home / Alexa. Pairing only succeeds while a commissioning window is open.</p>
     </aside>
   </main>
-  <footer>auto-refreshes every 5s</footer>
+  <footer>live &#8212; updates every 5s</footer>
 </div>
+<script>
+// Soft refresh: re-fetch the page and swap only the live regions in place, so
+// there's no full reload (no flash, no scroll jump). The card markup stays
+// single-sourced in this template — JS just transplants the rendered nodes.
+(function () {
+  var LIVE = ['.devices', '.stat'];
+  async function tick() {
+    try {
+      var res = await fetch(location.pathname, { cache: 'no-store' });
+      if (!res.ok) return;
+      var doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      LIVE.forEach(function (sel) {
+        var cur = document.querySelector(sel), next = doc.querySelector(sel);
+        if (cur && next) cur.replaceWith(next);
+      });
+    } catch (e) { /* transient network/server hiccup; try again next tick */ }
+  }
+  setInterval(tick, 5000);
+})();
+</script>
 </body>
 </html>
