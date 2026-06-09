@@ -189,6 +189,33 @@ impl Bridge {
         Ok(())
     }
 
+    /// Re-establish every subscription after a broker (re)connection: the
+    /// discovery wildcard plus each active device's state and availability
+    /// topics. Subscriptions are clean-session state, so this must run on every
+    /// `ConnAck` — otherwise boss stays "connected" but deaf after a broker
+    /// restart. Idempotent: re-subscribing an existing filter is harmless, and
+    /// the broker replays retained discovery/state/availability so the bridge
+    /// re-syncs at once.
+    pub fn resubscribe(&self, discovery_filter: &str) {
+        if let Err(e) = self.client.subscribe(discovery_filter) {
+            log::warn!("resubscribe discovery `{discovery_filter}`: {e}");
+        }
+        let routes = self.routes();
+        let mut n = 0;
+        for topic in routes
+            .by_state_topic
+            .keys()
+            .chain(routes.by_avty_topic.keys())
+        {
+            if let Err(e) = self.client.subscribe(topic) {
+                log::warn!("resubscribe `{topic}`: {e}");
+            } else {
+                n += 1;
+            }
+        }
+        log::info!("(re)subscribed: discovery + {n} device topic(s)");
+    }
+
     /// A read-only view of every currently bridged device, for the status page.
     pub fn device_views(&self) -> Vec<DeviceView> {
         self.slots

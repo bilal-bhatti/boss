@@ -6,7 +6,7 @@ use std::net::UdpSocket;
 use std::process::id;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use embassy_futures::select::{select, select3, select4};
+use embassy_futures::select::{select, select4};
 use futures_lite::StreamExt;
 
 use rs_matter::crypto::{default_crypto, Crypto};
@@ -54,16 +54,18 @@ fn run() -> Result<(), Error> {
     })?;
 
     // --- MQTT ---
-    let (client, incoming) = mqtt::connect(&cfg, &client_id()).map_err(|e| {
+    // Subscriptions are (re)established on every connection via the `connected`
+    // signal below, so there's no one-shot subscribe here — the first ConnAck
+    // drives the initial subscribe through the same path as every reconnect.
+    let mqtt::MqttConn {
+        client,
+        incoming,
+        connected,
+    } = mqtt::connect(&cfg, &client_id()).map_err(|e| {
         log::error!("{e}");
         ErrorCode::StdIoError
     })?;
     let discovery = cfg.discovery_filter("switch");
-    client.subscribe(&discovery).map_err(|e| {
-        log::error!("{e}");
-        ErrorCode::StdIoError
-    })?;
-    log::info!("subscribed to `{discovery}`");
 
     // --- Matter plumbing (mirrors the rs-matter bridge example) ---
     let mut matter = Matter::new(&TEST_DEV_DET, TEST_DEV_COMM, &TEST_DEV_ATT, MATTER_PORT);
@@ -138,11 +140,27 @@ fn run() -> Result<(), Error> {
     let mut router = pin!(run_router(&bridge, &cfg, incoming));
     let mut sigint = pin!(wait_for_sigint());
     let mut web = pin!(boss::web::run(&bridge, cfg.http_port, &comm_info));
+    let mut resub = pin!(run_resubscribe(&bridge, connected, &discovery));
 
     let core = select4(&mut transport, &mut mdns, &mut respond, &mut dm_job).coalesce();
-    let aux = select3(&mut router, &mut sigint, &mut web).coalesce();
+    let aux = select4(&mut router, &mut sigint, &mut web, &mut resub).coalesce();
 
     futures_lite::future::block_on(select(core, aux).coalesce())
+}
+
+/// Re-subscribe everything on each broker (re)connection. The first signal does
+/// the initial subscribe; every later one recovers from a broker restart or
+/// network blip (a clean MQTT session starts with no subscriptions).
+async fn run_resubscribe(
+    bridge: &Bridge,
+    connected: async_channel::Receiver<()>,
+    discovery: &str,
+) -> Result<(), Error> {
+    while connected.recv().await.is_ok() {
+        bridge.resubscribe(discovery);
+    }
+    log::info!("mqtt connection closed; resubscribe loop ended");
+    Ok(())
 }
 
 /// Compute the Matter onboarding QR (as SVG) + manual pairing code shown on the
